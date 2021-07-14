@@ -1,13 +1,25 @@
 ;;; packages.el --- Auto-completion Layer packages File for Spacemacs
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 (setq auto-completion-packages
       '(
@@ -15,8 +27,10 @@
         auto-complete
         ac-ispell
         company
+        (company-box :toggle auto-completion-use-company-box)
+        (all-the-icons :toggle auto-completion-use-company-box)
         (company-quickhelp :toggle auto-completion-enable-help-tooltip)
-        company-statistics
+        (company-statistics :toggle auto-completion-enable-sort-by-usage)
         counsel
         fuzzy
         (helm-company :requires helm)
@@ -25,8 +39,8 @@
         (ivy-yasnippet :requires ivy)
         smartparens
         yasnippet
-        yasnippet-snippets
-        ))
+        yasnippet-snippets))
+
 
 ;; TODO replace by company-ispell which comes with company
 ;; to be moved to spell-checking layer as well
@@ -37,9 +51,9 @@
     (progn
       (setq ac-ispell-requires 4)
       (with-eval-after-load 'auto-complete
-        (ac-ispell-setup))
-      ;; (add-hook 'markdown-mode-hook 'ac-ispell-ac-setup)
-      )))
+        (ac-ispell-setup)))))
+;; (add-hook 'markdown-mode-hook 'ac-ispell-ac-setup)
+
 
 (defun auto-completion/init-auto-complete ()
   (use-package auto-complete
@@ -88,7 +102,7 @@
     :init
     (progn
       (setq company-idle-delay auto-completion-idle-delay
-            company-minimum-prefix-length 2
+            company-minimum-prefix-length auto-completion-minimum-prefix-length
             company-require-match nil
             company-dabbrev-ignore-case nil
             company-dabbrev-downcase nil)
@@ -115,14 +129,10 @@
         (define-key map (kbd "C-d")   'company-show-doc-buffer))
       (add-hook 'spacemacs-editing-style-hook 'spacemacs//company-active-navigation)
       ;; ensure that the correct bindings are set at startup
-      (spacemacs//company-active-navigation dotspacemacs-editing-style)
-
-      (setq company-transformers '(spacemacs//company-transformer-cancel
-                                   company-sort-by-occurrence)))))
+      (spacemacs//company-active-navigation dotspacemacs-editing-style))))
 
 (defun auto-completion/init-company-statistics ()
   (use-package company-statistics
-    :if auto-completion-enable-sort-by-usage
     :defer t
     :init
     (progn
@@ -131,9 +141,9 @@
       (add-hook 'company-mode-hook 'company-statistics-mode))))
 
 (defun auto-completion/pre-init-counsel ()
-    (spacemacs|use-package-add-hook company
-      :post-config
-      (define-key company-active-map (kbd "C-/") 'counsel-company)))
+  (spacemacs|use-package-add-hook company
+    :post-config
+    (define-key company-active-map (kbd "C-/") 'counsel-company)))
 
 (defun auto-completion/init-fuzzy ()
   (use-package fuzzy :defer t))
@@ -149,13 +159,79 @@
        (unless (eq auto-completion-enable-help-tooltip 'manual)
          (company-quickhelp-mode))))))
 
+(defun auto-completion/init-all-the-icons ()
+  (use-package all-the-icons
+    :after company
+    :config
+    (progn
+      (eval-and-compile
+        ;; Icons selected by liguangsheng
+        ;; https://github.com/liguangsheng/emacsd/blob/master/lisp/init-completion.el
+        (defun my-company-box-icon (family icon &rest args)
+          "Defines icons using `all-the-icons' for `company-box'."
+          (when icon
+            (let ((icon (pcase family
+                          ('octicon (all-the-icons-octicon icon :height 0.8 :v-adjust -0.05 args))
+                          ('faicon (all-the-icons-faicon icon :height 0.8 :v-adjust -0.0575))
+                          ('material (all-the-icons-material icon :height 0.8 :v-adjust -0.225 args))
+                          ('alltheicon (all-the-icons-alltheicon icon :height 0.8 args)))))
+              (unless (symbolp icon)
+                (concat icon
+                        (propertize " " 'face 'variable-pitch)))))))
+      (setq company-box-icons-all-the-icons
+            `((Unknown . ,(my-company-box-icon 'octicon "file-text"))
+              (Text . ,(my-company-box-icon 'faicon "file-text-o"))
+              (Method . ,(my-company-box-icon 'faicon "cube"))
+              (Function . ,(my-company-box-icon 'faicon "cube"))
+              (Constructor . ,(my-company-box-icon 'faicon "cube"))
+              (Field . ,(my-company-box-icon 'faicon "tag"))
+              (Variable . ,(my-company-box-icon 'faicon "tag"))
+              (Class . ,(my-company-box-icon 'faicon "cog"))
+              (Interface . ,(my-company-box-icon 'faicon "cogs"))
+              (Module . ,(my-company-box-icon 'alltheicon "less"))
+              (Property . ,(my-company-box-icon 'faicon "wrench"))
+              (Unit . ,(my-company-box-icon 'faicon "tag"))
+              (Value . ,(my-company-box-icon 'faicon "tag"))
+              (Enum . ,(my-company-box-icon 'faicon "file-text-o"))
+              (Keyword . ,(my-company-box-icon 'material "format_align_center"))
+              (Snippet . ,(my-company-box-icon 'material "content_paste"))
+              (Color . ,(my-company-box-icon 'material "palette"))
+              (File . ,(my-company-box-icon 'faicon "file"))
+              (Reference . ,(my-company-box-icon 'faicon "tag"))
+              (Folder . ,(my-company-box-icon 'faicon "folder"))
+              (EnumMember . ,(my-company-box-icon 'faicon "tag"))
+              (Constant . ,(my-company-box-icon 'faicon "tag"))
+              (Struct . ,(my-company-box-icon 'faicon "cog"))
+              (Event . ,(my-company-box-icon 'faicon "bolt"))
+              (Operator . ,(my-company-box-icon 'faicon "tag"))
+              (TypeParameter . ,(my-company-box-icon 'faicon "cog"))
+              (Template . ,(my-company-box-icon 'octicon "file-code")))))))
+
+(defun auto-completion/init-company-box ()
+  (use-package company-box
+    :hook '(company-mode . company-box-mode)
+    :commands 'company-box-doc-manually
+    :init (setq company-box-icons-alist 'company-box-icons-all-the-icons)
+    :config
+    (progn
+      (spacemacs|hide-lighter company-box-mode)
+      (setq company-box-backends-colors nil
+            company-box-max-candidates 1000
+            company-box-doc-enable nil)
+      (add-hook 'company-box-selection-hook
+                (lambda (selection frame) (company-box-doc--hide frame)))
+      (cl-case auto-completion-enable-help-tooltip
+        ('manual (define-key company-active-map
+                   (kbd "M-h") #'company-box-doc-manually))
+        ('t (setq company-box-doc-enable t))))))
+
 (defun auto-completion/init-helm-c-yasnippet ()
   (use-package helm-c-yasnippet
     :defer t
     :init
     (progn
       (spacemacs/set-leader-keys "is" 'spacemacs/helm-yas)
-      (setq helm-c-yas-space-match-any-greedy t))))
+      (setq helm-yas-space-match-any-greedy t))))
 
 (defun auto-completion/pre-init-helm-company ()
   (spacemacs|use-package-add-hook company
@@ -234,11 +310,11 @@
       (let* ((spacemacs--auto-completion-dir
               (configuration-layer/get-layer-local-dir 'auto-completion))
              (emacs-directory-snippets-dir (concat
-                                          spacemacs-private-directory
-                                          "snippets/"))
+                                            spacemacs-private-directory
+                                            "snippets/"))
              (spacemacs-layer-snippets-dir (expand-file-name
-                                      "snippets"
-                                      spacemacs--auto-completion-dir))
+                                            "snippets"
+                                            spacemacs--auto-completion-dir))
              (dotspacemacs-directory-snippets-dir
               (when dotspacemacs-directory
                 (let ((snippet-dir (expand-file-name
@@ -267,11 +343,11 @@
        'spacemacs/force-yasnippet-off '(term-mode-hook
                                         shell-mode-hook
                                         eshell-mode-hook))
-      (spacemacs|require 'yasnippet)
+      (spacemacs|require-when-dumping 'yasnippet)
       (spacemacs/add-to-hooks 'spacemacs/load-yasnippet '(prog-mode-hook
                                                           markdown-mode-hook
-                                                          org-mode-hook))
-      )
+                                                          org-mode-hook)))
+
     :config (spacemacs|diminish yas-minor-mode " ⓨ" " y")))
 
 (defun auto-completion/init-yasnippet-snippets ())

@@ -10,6 +10,7 @@
   - [[#global-bindings][Global bindings]]
   - [[#headers-mode][Headers mode]]
   - [[#view-mode][View mode]]
+  - [[#compose-mode][Compose mode]]
 - [[#configuration][Configuration]]
   - [[#maildirs-extension][Maildirs extension]]
   - [[#multiple-accounts][Multiple Accounts]]
@@ -20,10 +21,13 @@
     - [[#os-notifications][OS notifications]]
     - [[#mode-line-notifications][Mode-line notifications]]
   - [[#spacemacs-layout-integration][Spacemacs layout integration]]
+  - [[#org-mu4e-integration][Org-mu4e integration]]
+    - [[#mu4e-link-support-in-org-mode][Mu4e link support in Org mode]]
+    - [[#composing-org-mode-messages-in-mu4e][Composing Org mode messages in mu4e]]
 - [[#see-also][See also]]
 
 * Description
-This layer adds support for the Mu4e email client.
+This layer adds support for the =Mu4e= email client.
 
 ** Features:
 - Search, read, reply, move, and delete email.
@@ -31,14 +35,15 @@ This layer adds support for the Mu4e email client.
 - UI optimized for speed: quick keystrokes for common actions.
 - Very extendable and customizable.
 - Integration with Helm.
-- Maildir summary using [[https://github.com/agpchil/mu4e-maildirs-extension][mu4e-mailidrs-extension]]
+- Maildir summary using [[https://github.com/agpchil/mu4e-maildirs-extension][mu4e-mailidirs-extension]]
 - Notifications using [[https://github.com/iqbalansari/mu4e-alert][mu4e-alert]]
 
 * Install
-In order to use this layer you must install mu and mu4e separately. Typically
-mu4e will be bundled with mu (this is the case on many Linux distributions).
+In order to use this layer you must install =mu= and =mu4e= separately.
+Typically =mu4e= will be bundled with =mu= (this is the case on many Linux
+distributions).
 
-If you're on OS X and install mu using Homebrew, you must specify the
+If you're on macOS and install =mu= using Homebrew, you must specify the
 location of your Emacs binary at install time using the EMACS environment
 variable, as well as passing the =--with-emacs= option:
 
@@ -46,7 +51,7 @@ variable, as well as passing the =--with-emacs= option:
   brew install mu --with-emacs
 #+END_SRC
 
-If the installation directory of mu4e is not in Emacs' load path, you can set
+If the installation directory of =mu4e= is not in Emacs' load path, you can set
 the layer variable =mu4e-installation-path=, for example:
 
 #+BEGIN_SRC emacs-lisp
@@ -63,10 +68,10 @@ existing =dotspacemacs-configuration-layers= list in this file.
 
 | Key binding            | Command                         |
 |------------------------+---------------------------------|
-| ~SPC a M~              | Start mu4e                      |
+| ~SPC a e m~            | Start mu4e                      |
 | ~SPC m S~ or ~SPC m /~ | Search emails (requires helm)   |
 | ~SPC m C~              | Search contacts (requires helm) |
-| C-x m                  | Compose new message             |
+| ~C-x m~                | Compose new message             |
 
 ** Headers mode
 
@@ -84,13 +89,23 @@ existing =dotspacemacs-configuration-layers= list in this file.
 | ~C-j~       | Next header                                                 |
 | ~C-k~       | Previous header                                             |
 
+** Compose mode
+
+| Key binding            | Command                        |
+|------------------------+--------------------------------|
+| ~SPC m c~ or ~SPC m ,~ | Send the message and exit      |
+| ~SPC m k~ or ~SPC m a~ | Kill the message buffer        |
+| ~SPC m s~              | Auto-save and bury the message |
+| ~SPC m f~              | Add file as attachment         |
+| ~SPC m o~              | Compose in Org-mode syntax     |
+
 * Configuration
 Configuration varies too much to give precise instructions. What follows is one
-example configuration. Refer to mu4e's manual for more detailed configuration
+example configuration. Refer to =mu4e='s manual for more detailed configuration
 instructions.
 
 ** Maildirs extension
-The [[https://github.com/agpchil/mu4e-maildirs-extension][maildirs extension]] adds a list of all your maildirs to the main mu4e view
+The [[https://github.com/agpchil/mu4e-maildirs-extension][maildirs extension]] adds a list of all your maildirs to the main =mu4e= view
 that by default shows the unread and total mail counts for all your mail under
 your base mail directory.
 
@@ -104,7 +119,7 @@ variable =mu4e-use-maildirs-extension= to a non-nil value:
 #+END_SRC
 
 ** Multiple Accounts
-With `mu 0.9.16`, mu4e comes with a native contexts feature for managing
+With =mu 0.9.16=, =mu4e= comes with a native contexts feature for managing
 multiple accounts.
 
 The following example is taken from the manual:
@@ -153,11 +168,11 @@ The following example is taken from the manual:
 #+END_SRC
 
 Note: We used to have a hack to support multiple accounts with older version of
-`mu` but we removed it to encourage people to update their version and use the
+=mu= but we removed it to encourage people to update their version and use the
 new contexts feature.
 
 ** Async mode
-mu4e can send mails in async mode, which speeds up sending as you do not have
+=mu4e= can send mails in async mode, which speeds up sending as you do not have
 to wait for the email to be sent. This is off by default but you can enable
 it by setting the ~mu4e-enable-async-operations~ variable when including the
 layer.
@@ -169,8 +184,9 @@ layer.
 #+END_SRC
 
 ** Attachment directory
-By default mu4e will save attachment files to $HOME, but this layer changes
-that to $HOME/Downloads if it exists. You can override this in your user-config:
+By default =mu4e= will save attachment files to =$HOME=, but this layer changes
+that to =$HOME/Downloads= if it exists. You can override this in your
+=dotspacemacs/user-config=:
 
 #+BEGIN_SRC emacs-lisp
   (setq mu4e-attachment-dir "~/files")
@@ -239,11 +255,11 @@ installed libraries:
 #+BEGIN_SRC emacs-lisp
   (with-eval-after-load 'mu4e-alert
     ;; Enable Desktop notifications
-    (mu4e-alert-set-default-style 'notifications)) ; For linux
-    ;; (mu4e-alert-set-default-style 'libnotify))  ; Alternative for linux
-    ;; (mu4e-alert-set-default-style 'notifier))   ; For Mac OSX (through the
-                                                   ; terminal notifier app)
-    ;; (mu4e-alert-set-default-style 'growl))      ; Alternative for Mac OSX
+    (mu4e-alert-set-default-style 'notifications)) ; For Linux.
+    ;; (mu4e-alert-set-default-style 'libnotify))  ; Alternative for Linux
+    ;; (mu4e-alert-set-default-style 'notifier))   ; For macOS (through the
+                                                   ; terminal notifier app).
+    ;; (mu4e-alert-set-default-style 'growl))      ; Alternative for macOS.
 #+END_SRC
 
 *** Mode-line notifications
@@ -266,7 +282,8 @@ A [[https://github.com/syl20bnr/spacemacs/blob/develop/doc/DOCUMENTATION.org#lay
 for it can be customized with the following layer variables:
 - =mu4e-spacemacs-layout-name= for the layout name,
 - =mu4e-spacemacs-layout-binding= for the key binding.
-- =mu4e-spacemacs-kill-layout-on-exit= for automatically removing layout when quitting mu4e.
+- =mu4e-spacemacs-kill-layout-on-exit= for automatically removing layout when
+  quitting =mu4e=.
 
 By default the values are:
 
@@ -277,6 +294,34 @@ By default the values are:
                         mu4e-spacemacs-kill-layout-on-exit t)))
 #+END_SRC
 
+** Org-mu4e integration
+*** Mu4e link support in Org mode
+Feature ~mu4e-org~ supports links to mu4e messages in Org mode in the form of
+~[[mu4e:msgid::***][link text]]~. Enabled by default. You can disable it by
+setting the ~mu4e-org-link-support~ variable when including the layer.
+
+#+BEGIN_SRC emacs-lisp
+  (setq-default dotspacemacs-configuration-layers
+                '((mu4e :variables
+                        mu4e-org-link-support nil)))
+#+END_SRC
+
+*** Composing Org mode messages in mu4e
+Feature ~org-mu4e~ supports composing emails in Org mode format. Disabled by
+default. You can enable it by setting the ~mu4e-org-compose-support~ variable
+when including the layer.
+
+#+BEGIN_SRC emacs-lisp
+  (setq-default dotspacemacs-configuration-layers
+                '((mu4e :variables
+                        mu4e-org-compose-support t)))
+#+END_SRC
+
+Then when composing, hit keys ~SPC m o~ to enable the
+~org-mu4e-compose-org-mode~ mode. Note that you need to set the variable
+~org-mu4e-convert-to-html~ if you want the message to be converted before
+sending.
+
 * See also
-Refer to the official mu and mu4e documentation for additional info.
+Refer to the official =mu= and =mu4e= documentation for additional info.
 - [[http://www.djcbsoftware.nl/code/mu/mu4e/index.html][mu4e Manual]]

@@ -1,13 +1,25 @@
 ;;; funcs.el --- Spacemacs Completion Layer functions File for Spacemacs
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 
 
@@ -43,6 +55,13 @@
     (unless (child-of-class-p source-type helm-source-async)
       (plist-put props :fuzzy-match (eq 'always helm-use-fuzzy))))
   (apply f args))
+
+(defun spacemacs//helm-find-files-enable-helm--in-fuzzy ()
+  "Enabling `helm--in-fuzzy' with the hook:
+`helm-find-files-after-init-hook'. Fixes the error:
+Helm issued errors: helm-match-from-candidates in source `Actions': wrong-type-argument (stringp nil)
+When searching in the helm-find-files (`SPC f f') actions (`C-z')."
+  (setq helm--in-fuzzy t))
 
 ;; Helm Header line
 
@@ -195,8 +214,11 @@ See https://github.com/syl20bnr/spacemacs/issues/3700"
    ((or (eq 'vim style)
         (and (eq 'hybrid style)
              hybrid-style-enable-hjkl-bindings))
-    (define-key ivy-minibuffer-map (kbd "C-j") 'ivy-next-line)
-    (define-key ivy-minibuffer-map (kbd "C-k") 'ivy-previous-line)
+    (dolist (map (list ivy-minibuffer-map
+                       ivy-switch-buffer-map
+                       ivy-reverse-i-search-map))
+      (define-key map (kbd "C-j") 'ivy-next-line)
+      (define-key map (kbd "C-k") 'ivy-previous-line))
     (define-key ivy-minibuffer-map (kbd "C-h") (kbd "DEL"))
     ;; Move C-h to C-S-h
     (define-key ivy-minibuffer-map (kbd "C-S-h") help-map)

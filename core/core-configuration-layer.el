@@ -1,14 +1,26 @@
 ;; -*- nameless-current-name: "configuration-layer" -*-
 ;;; core-configuration-layer.el --- Spacemacs Core File
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 (require 'cl-lib)
 (require 'epg)
@@ -17,7 +29,7 @@
 (require 'package)
 (require 'warnings)
 (require 'help-mode)
-(require 'ht)
+(require 'spacemacs-ht)
 (require 'core-dotspacemacs)
 (require 'core-funcs)
 (require 'core-progress-bar)
@@ -53,7 +65,7 @@
   "Absolute path to the lock file.")
 
 (defvar configuration-layer-stable-elpa-version spacemacs-version
-  "Version of ELPA stable repository. This value is aimed to be overwritten by
+  "Version of ELPA stable repository. This value is aimed to be defined in
 the .lock file at the root of the repository.")
 
 (defvar configuration-layer-stable-elpa-name "spacelpa"
@@ -68,6 +80,10 @@ the lock file.")
    (concat spacemacs-cache-directory "stable-elpa/" emacs-version "/"))
   "Remote location of the tarball for the ELPA stable directory")
 
+(defconst configuration-layer-stable-elpa-archive nil
+  "Absolute path to stable ELPA directory. This value is aimed to be defined in
+the .lock file at the root of the repository.")
+
 (defconst configuration-layer--stable-elpa-tarball-directory
   "https://github.com/syl20bnr/spacelpa/archive/"
   "Remote location of the tarball for the ELPA stable directory")
@@ -77,7 +93,7 @@ the lock file.")
   "Remote location of the signature file for the ELPA stable directory")
 
 (defconst configuration-layer--stable-elpa-gpg-keyring
-  (expand-file-name (concat spacemacs-core-directory "gnupg/spacemacs.pub"))
+  (expand-file-name (concat spacemacs-core-directory "gnupg/spacemacs.gpg"))
   "Absolute path to public GPG key used to signed the ELPA stable repository
 tarballs.")
 
@@ -147,10 +163,10 @@ subdirectory of ROOT is used."
              :type list
              :documentation "List of package symbols declared in this layer.")
    (selected-packages :initarg :selected-packages
-             :initform 'all
-             :type (satisfies (lambda (x) (or (and (symbolp x) (eq 'all x))
-                                              (listp x))))
-             :documentation "List of selected package symbols.")
+                      :initform 'all
+                      :type (satisfies (lambda (x) (or (and (symbolp x) (eq 'all x))
+                                                       (listp x))))
+                      :documentation "List of selected package symbols.")
    (variables :initarg :variables
               :initform nil
               :type list
@@ -210,7 +226,7 @@ LAYER has to be installed for this method to work properly."
     (when (and (numberp rank)
                (not (eq 'unspecified shadow-candidates))
                (listp shadow-candidates))
-      (mapcar
+      (mapc
        (lambda (other)
          (let ((orank (cl-position other configuration-layer--used-layers)))
            ;; OTHER shadows LAYER if and only if OTHER's rank is bigger than
@@ -370,6 +386,9 @@ file.")
 (defvar configuration-layer--used-layers '()
   "A non-sorted list of used layer names.")
 
+(defvar configuration-layer--layers-dependencies '()
+  "List of layers declared in `layers.el' files.")
+
 (defvar configuration-layer--indexed-layers (make-hash-table :size 1024)
   "Hash map to index `cfgl-layer' objects by their names.")
 
@@ -420,15 +439,7 @@ cache folder.")
 (defun configuration-layer/initialize ()
   "Initialize `package.el'."
   (unless dotspacemacs-use-spacelpa
-    ;; cleanly remove usage of stable elpa
-    (setq configuration-layer-elpa-archives
-          (cl-delete configuration-layer-stable-elpa-name
-                     configuration-layer-elpa-archives
-                     :test 'equal :key 'car))
-    (setq package-archive-priorities
-          (cl-delete configuration-layer-stable-elpa-name
-                     package-archive-priorities
-                     :test 'equal :key 'car)))
+    (configuration-layer//stable-elpa-disable-repository))
   (setq configuration-layer--refresh-package-timeout dotspacemacs-elpa-timeout)
   (unless package--initialized
     (setq configuration-layer-rollback-directory
@@ -443,9 +454,9 @@ cache folder.")
     (setq package-enable-at-startup nil)
     (package-initialize 'noactivate)
     ;; hack to be sure to enable insalled org from Org ELPA repository
-    (when (package-installed-p 'org-plus-contrib)
+    (when (package-installed-p 'org)
       (spacemacs-buffer/message "Initializing Org early...")
-      (configuration-layer//activate-package 'org-plus-contrib))))
+      (configuration-layer//activate-package 'org))))
 
 (defun configuration-layer//configure-quelpa ()
   "Configure `quelpa' package."
@@ -581,13 +592,13 @@ refreshed during the current session."
     ;; force dump
     (configuration-layer//load)
     (when (spacemacs/emacs-with-pdumper-set-p)
-      (configuration-layer/message (concat "--force-dump passed on the command line, "
-                         "forcing a redump."))
+      (configuration-layer/message
+       (concat "--force-dump passed on the command line or configuration has "
+               "been reloaded, forcing a redump."))
       (configuration-layer//dump-emacs)))
    ((spacemacs-is-dumping-p)
     ;; dumping
-    (configuration-layer//load)
-    (configuration-layer/message "Dumping Emacs..."))
+    (configuration-layer//load))
    ((and (spacemacs/emacs-with-pdumper-set-p)
          (spacemacs-run-from-dump-p))
     ;; dumped
@@ -615,8 +626,6 @@ refreshed during the current session."
 CHANGEDP non-nil means that layers list has changed since last dump
 To prevent package from being installed or uninstalled set the variable
 `spacemacs-sync-packages' to nil."
-  (when (spacemacs-buffer//choose-banner)
-    (spacemacs-buffer//inject-version))
   ;; declare used layers then packages as soon as possible to resolve
   ;; usage and ownership
   (configuration-layer/discover-layers 'refresh-index)
@@ -624,7 +633,7 @@ To prevent package from being installed or uninstalled set the variable
   (configuration-layer//declare-used-packages configuration-layer--used-layers)
   ;; then load the functions and finally configure the layers
   (configuration-layer//load-layers-files configuration-layer--used-layers
-                        '("funcs.el"))
+                                          '("funcs.el"))
   (configuration-layer//configure-layers configuration-layer--used-layers)
   ;; load layers lazy settings
   (configuration-layer/load-auto-layer-file)
@@ -664,8 +673,14 @@ To prevent package from being installed or uninstalled set the variable
   ;; packages configuration above
   (configuration-layer//set-layers-variables configuration-layer--used-layers)
   (configuration-layer//load-layers-files configuration-layer--used-layers
-                        '("keybindings.el"))
+                                          '("keybindings.el"))
   (when (spacemacs-is-dumping-p)
+    ;; dump stuff in layers
+    (dolist (layer-name configuration-layer--used-layers)
+      (let ((layer-dump-func (intern (format "%S/pre-dump" layer-name))))
+        (when (fboundp layer-dump-func)
+          (configuration-layer/message "Pre-dumping layer %S..." layer-name)
+          (funcall layer-dump-func))))
     (dotspacemacs|call-func dotspacemacs/user-load
                             "Calling dotfile user-load...")))
 
@@ -683,8 +698,8 @@ layer directory."
   (interactive)
   (let* ((current-layer-paths (mapcar (lambda (dir) (expand-file-name dir))
                                       (cl-pushnew
-                               configuration-layer-private-layer-directory
-                               dotspacemacs-configuration-layer-path)))
+                                       configuration-layer-private-layer-directory
+                                       dotspacemacs-configuration-layer-path)))
          (other-choice "Another directory...")
          (helm-lp-source
           `((name . "Configuration Layer Paths")
@@ -700,12 +715,12 @@ layer directory."
          (layer-path (cond
                       ((string-equal layer-path-sel other-choice)
                        (read-directory-name (concat "Other configuration "
-                                                    "layer path: ") "~/" ))
+                                                    "layer path: ") "~/"))
                       ((member layer-path-sel current-layer-paths)
                        layer-path-sel)
                       (t
                        (error "Please select an option from the list"))))
-         (name (read-from-minibuffer "Configuration layer name: " ))
+         (name (read-from-minibuffer "Configuration layer name: "))
          (layer-dir (concat layer-path "/" name)))
     (cond
      ((string-equal "" name)
@@ -938,7 +953,7 @@ a new object."
   (purecopy (concat "mouse-2, RET: show a description of this package.")))
 
 (defun configuration-layer/describe-package (pkg-symbol
-                            &optional layer-list pkg-list)
+                                             &optional layer-list pkg-list)
   "Describe a package in the context of the configuration layer system."
   (interactive
    (list (intern
@@ -990,7 +1005,7 @@ a new object."
         (princ (if (cfgl-package-toggled-p pkg t) "on" "off"))
         (princ " because the following expression evaluates to ")
         (princ (if (cfgl-package-toggled-p pkg t) "t:\n" "nil:\n"))
-        (princ (oref pkg :toggle))
+        (prin1 (oref pkg :toggle))
         (princ "\n"))
       (when (oref pkg :requires)
         (princ "\nThis package requires the following packages: ")
@@ -1146,21 +1161,21 @@ USEDP non-nil means that PKG is a used layer."
 (defun configuration-layer/get-layer (layer-name)
   "Return a layer object with name LAYER-NAME.
 Return nil if layer object is not found."
-  (when (ht-contains? configuration-layer--indexed-layers layer-name)
-    (ht-get configuration-layer--indexed-layers layer-name)))
+  (when (spacemacs-ht-contains? configuration-layer--indexed-layers layer-name)
+    (spacemacs-ht-get configuration-layer--indexed-layers layer-name)))
 
 (defun configuration-layer/get-layers-list ()
   "Return a list of all discovered layer symbols."
-  (ht-keys configuration-layer--indexed-layers))
+  (spacemacs-ht-keys configuration-layer--indexed-layers))
 
 (defun configuration-layer/get-layer-local-dir (layer)
   "Return the value of SLOT for the given LAYER."
-  (let ((obj (ht-get configuration-layer--indexed-layers layer)))
+  (let ((obj (spacemacs-ht-get configuration-layer--indexed-layers layer)))
     (when obj (concat (oref obj :dir) "local/"))))
 
 (defun configuration-layer/get-layer-path (layer)
   "Return the path for LAYER symbol."
-  (let ((obj (ht-get configuration-layer--indexed-layers layer)))
+  (let ((obj (spacemacs-ht-get configuration-layer--indexed-layers layer)))
     (when obj (oref obj :dir))))
 
 (defun configuration-layer//add-package (pkg &optional usedp)
@@ -1173,28 +1188,29 @@ USEDP non-nil means that PKG is a used package."
 
 (defun configuration-layer/get-packages-list ()
   "Return a list of all package symbols."
-  (ht-keys configuration-layer--indexed-packages))
+  (spacemacs-ht-keys configuration-layer--indexed-packages))
 
 (defun configuration-layer/get-package (pkg-name)
   "Return a package object with name PKG-NAME.
 Return nil if package object is not found."
-  (when (ht-contains? configuration-layer--indexed-packages pkg-name)
-    (ht-get configuration-layer--indexed-packages pkg-name)))
+  (when (spacemacs-ht-contains? configuration-layer--indexed-packages pkg-name)
+    (spacemacs-ht-get configuration-layer--indexed-packages pkg-name)))
 
 (defun configuration-layer//sort-packages (packages)
   "Return a sorted list of PACKAGES objects."
   (sort packages (lambda (x y) (string< (symbol-name x) (symbol-name y)))))
 
-(defun configuration-layer/make-all-packages (&optional skip-layer-discovery)
+(defun configuration-layer/make-all-packages (&optional skip-layer-discovery skip-layer-deps)
   "Create objects for _all_ packages supported by Spacemacs.
-If SKIP-LAYER-DISCOVERY is non-nil then do not check for new layers."
+If SKIP-LAYER-DISCOVERY is non-nil then do not check for new layers.
+If SKIP-LAYER-DEPS is non-nil then skip declaration of layer dependencies."
   (let ((all-layers (configuration-layer/get-layers-list))
         (configuration-layer--load-packages-files t)
         (configuration-layer--package-properties-read-onlyp t)
         (configuration-layer--inhibit-warnings t))
     (unless skip-layer-discovery
       (configuration-layer/discover-layers))
-    (configuration-layer/declare-layers all-layers)
+    (configuration-layer/declare-layers all-layers skip-layer-deps)
     (configuration-layer/make-packages-from-layers all-layers)))
 
 (defun configuration-layer/make-packages-from-layers
@@ -1269,8 +1285,8 @@ USEDP if non-nil indicates that made packages are used packages."
            'auto-mode-alist
            `(,ext . (lambda ()
                       (configuration-layer//auto-mode
-                       ',layer-name ',mode))))
-          ))
+                       ',layer-name ',mode))))))
+
       ;; configure `interpreter-mode-alist'
       (when interpreter
         (let ((regex (car interpreter))
@@ -1278,7 +1294,7 @@ USEDP if non-nil indicates that made packages are used packages."
           (add-to-list
            'interpreter-mode-alist
            `(,regex . (lambda () (configuration-layer//auto-mode
-                               ',layer-name ',mode)))))))))
+                                  ',layer-name ',mode)))))))))
 
 (defun configuration-layer//auto-mode (layer-name mode)
   "Auto mode support of lazily installed layers."
@@ -1377,6 +1393,15 @@ Returns nil if the directory is not a category."
       (when (string-match "^+" dirname)
         (intern (substring dirname 1))))))
 
+(defun configuration-layer//get-layer-parent-category (layer-name)
+  "Return a parent category symbol for given LAYER-NAME.
+Returns nil if there is no layer named LAYER-NAME."
+  (when-let ((lp (configuration-layer/get-layer-path layer-name)))
+    (thread-last lp
+      directory-file-name
+      file-name-directory
+      configuration-layer//get-category-from-path)))
+
 (defun configuration-layer/discover-layers (&optional refresh-index)
   "Initialize `configuration-layer--indexed-layers' with layer directories.
 If REFRESH-INDEX is non-nil, the layer index is cleared before
@@ -1459,14 +1484,16 @@ discovery."
                 ;; layer not found, add it to search path
                 (setq search-paths (cons sub search-paths)))))))))))
 
-(defun configuration-layer/declare-layers (layers-specs)
+(defun configuration-layer/declare-layers (layers-specs &optional skip-layer-deps)
   "Declare layers with LAYERS-SPECS."
-  (mapc 'configuration-layer/declare-layer layers-specs))
+  (dolist (specs layers-specs)
+    (configuration-layer/declare-layer specs skip-layer-deps)))
 
-(defun configuration-layer/declare-layer (layer-specs)
+(defun configuration-layer/declare-layer (layer-specs &optional skip-layer-deps)
   "Declare a single layer with spec LAYER-SPECS.
 Set the variable `configuration-layer--declared-layers-usedp' to control
-whether the declared layer is an used one or not."
+whether the declared layer is an used one or not.
+If `SKIP-LAYER-DEPS' is non nil then skip loading of layer dependenciesl"
   (let* ((layer-name (if (listp layer-specs) (car layer-specs) layer-specs))
          (layer (configuration-layer/get-layer layer-name))
          (usedp configuration-layer--declared-layers-usedp))
@@ -1477,18 +1504,25 @@ whether the declared layer is an used one or not."
                     usedp)))
           (configuration-layer//add-layer obj usedp)
           (configuration-layer//set-layer-variables obj)
-          (when (and (not (oref layer :deps-loaded))
+          (when (and (not skip-layer-deps)
+                     (not (oref layer :deps-loaded))
                      (or usedp configuration-layer--load-packages-files))
             (oset layer :deps-loaded t)
             (configuration-layer//load-layer-files layer-name '("layers.el"))))
       (configuration-layer//warning "Unknown declared layer %s." layer-name))))
+
+(defun configuration-layer/declare-layer-dependencies (layer-names)
+  "Function to be used in `layers.el' files to declare dependencies."
+  (dolist (x layer-names)
+    (add-to-list 'configuration-layer--layers-dependencies x)
+    (configuration-layer//load-layer-files x '("layers.el"))))
 
 (defun configuration-layer//declare-used-layers (layers-specs)
   "Declare used layers from LAYERS-SPECS list."
   (setq configuration-layer--used-layers nil)
   (let ((configuration-layer--declared-layers-usedp t))
     (unless configuration-layer-exclude-all-layers
-      (dolist (layer-specs layers-specs)
+      (dolist (layer-specs (remove nil layers-specs))
         (let* ((layer-name (if (listp layer-specs)
                                (car layer-specs)
                              layer-specs))
@@ -1501,6 +1535,10 @@ whether the declared layer is an used one or not."
              "Unknown layer %s declared in dotfile." layer-name))))
       (setq configuration-layer--used-layers
             (reverse configuration-layer--used-layers)))
+    ;; declare additional layer required by used layers
+    ;; this layers will be at the beginning of `configuration-layer--used-layers'
+    (dolist (layer-name configuration-layer--layers-dependencies)
+      (configuration-layer/declare-layer layer-name))
     ;; distribution and bootstrap layers are always first
     (let ((distribution (if configuration-layer-force-distribution
                             configuration-layer-force-distribution
@@ -1574,7 +1612,11 @@ RNAME is the name symbol of another existing layer."
       (let ((var (pop variables)))
         (if (consp variables)
             (condition-case-unless-debug err
-                (set-default var (eval (pop variables)))
+                (let ((val (eval (pop variables))))
+                  (when (get var 'spacemacs-customization--variable)
+                    (spacemacs-customization//validate
+                     val (custom-variable-type var)))
+                  (set-default var val))
               ('error
                (configuration-layer//error
                 (concat "\nAn error occurred while setting layer "
@@ -1589,7 +1631,7 @@ RNAME is the name symbol of another existing layer."
   (or (eq 'dotfile layer-name)
       (let ((obj (configuration-layer/get-layer layer-name)))
         (when obj (and (not (cfgl-layer-get-shadowing-layers obj))
-                   (memq layer-name configuration-layer--used-layers))))))
+                       (memq layer-name configuration-layer--used-layers))))))
 (defalias 'configuration-layer/layer-usedp
   'configuration-layer/layer-used-p)
 
@@ -1619,7 +1661,11 @@ RNAME is the name symbol of another existing layer."
   "Configure layers with LAYER-NAMES."
   (let ((warning-minimum-level :error))
     (dolist (layer-name layer-names)
-      (configuration-layer//load-layer-files layer-name '("config.el")))))
+      (let ((spacemacs-customization--current-group
+             (spacemacs-customization//create-layer-group
+              layer-name
+              (configuration-layer//get-layer-parent-category layer-name))))
+        (configuration-layer//load-layer-files layer-name '("config.el"))))))
 
 (defun configuration-layer//declare-used-packages (layers)
   "Declare used packages contained in LAYERS."
@@ -1696,7 +1742,7 @@ RNAME is the name symbol of another existing layer."
             (configuration-layer//install-from-recipe pkg)
             (cfgl-package-set-property pkg :lazy-install nil))
            (t (configuration-layer//warning "Cannot install package %S."
-                                        pkg-name)))
+                                            pkg-name)))
         ('error
          (configuration-layer//error
           (concat "\nAn error occurred while installing %s "
@@ -1815,26 +1861,34 @@ RNAME is the name symbol of another existing layer."
                "to add a recipe for it in alist %S.")
        pkg-name recipes-var))))
 
-(defun configuration-layer//filter-packages-with-deps
+(defun configuration-layer//filter-packages-with-deps-recur
     (pkg-names filter &optional use-archive)
   "Return a filtered PKG-NAMES list where each elements satisfies FILTER."
   (when pkg-names
     (let (result)
       (dolist (pkg-name pkg-names)
-        ;; recursively check dependencies
-        (let* ((deps
-                (if use-archive
-                    (configuration-layer//get-package-deps-from-archive
-                     pkg-name)
-                  (configuration-layer//get-package-deps-from-alist pkg-name)))
-               (install-deps
-                (when deps (configuration-layer//filter-packages-with-deps
-                            (mapcar 'car deps) filter))))
-          (when install-deps
-            (setq result (append install-deps result))))
-        (when (funcall filter pkg-name)
-          (add-to-list 'result pkg-name t)))
+        (when (not (memq pkg-name checked-packages))
+          (push pkg-name checked-packages)
+          ;; recursively check dependencies
+          (let* ((deps
+                  (if use-archive
+                      (configuration-layer//get-package-deps-from-archive
+                       pkg-name)
+                    (configuration-layer//get-package-deps-from-alist pkg-name)))
+                 (install-deps
+                  (when deps (configuration-layer//filter-packages-with-deps-recur
+                              (mapcar 'car deps) filter))))
+            (when install-deps
+              (setq result (append install-deps result))))
+          (when (funcall filter pkg-name)
+            (add-to-list 'result pkg-name t))))
       (delete-dups result))))
+
+(defun configuration-layer//filter-packages-with-deps
+    (pkg-names filter &optional use-archive)
+  "Return a filtered PKG-NAMES list where each elements satisfies FILTER."
+  (let ((checked-packages))
+    (configuration-layer//filter-packages-with-deps-recur pkg-names filter use-archive)))
 
 (defun configuration-layer//get-uninstalled-packages (pkg-names)
   "Return a filtered list of PKG-NAMES to install."
@@ -2071,6 +2125,7 @@ LAYER must not be the owner of PKG."
 If called with a prefix argument or NO-CONFIRMATION is non-nil then assume yes
 to update."
   (interactive "P")
+  (switch-to-buffer spacemacs-buffer-name)
   (spacemacs-buffer/insert-page-break)
   (spacemacs-buffer/append "\nUpdating package archives, please wait...\n")
   (configuration-layer/retrieve-package-archives nil 'force)
@@ -2145,10 +2200,11 @@ to update."
         (spacemacs-buffer/append
          (format "\n--> %s package(s) to be updated.\n" upgraded-count))
         (spacemacs-buffer/append
-         (format
-          (concat "\nEmacs has to be restarted to actually install the "
-                  "new version of the packages%s.\n")
-          (if (member "restart-emacs" update-packages) "" " (SPC q r)")))
+         (format "\nRestart Emacs to install the updated packages. %s\n"
+                 (if (member 'restart-emacs update-packages)
+                     (concat "\n(SPC q r) won't work this time, because the"
+                             "\nrestart-emacs package is being updated.")
+                   "(SPC q r)")))
         (configuration-layer//cleanup-rollback-directory)
         (spacemacs//redisplay)))
     (when (eq upgrade-count 0)
@@ -2246,7 +2302,7 @@ depends on it."
              (deps (configuration-layer//get-package-deps-from-alist pkg-sym)))
         (dolist (dep deps)
           (let* ((dep-sym (car dep))
-                 (value (ht-get result dep-sym)))
+                 (value (spacemacs-ht-get result dep-sym)))
             (puthash dep-sym
                      (if value (add-to-list 'value pkg-sym) (list pkg-sym))
                      result)))))
@@ -2275,8 +2331,8 @@ depends on it."
   "Returns not nil if PKG-NAME is the name of an orphan package."
   (unless (or (memq pkg-name dist-pkgs)
               (memq pkg-name configuration-layer--protected-packages))
-    (if (ht-contains? dependencies pkg-name)
-        (let ((parents (ht-get dependencies pkg-name)))
+    (if (spacemacs-ht-contains? dependencies pkg-name)
+        (let ((parents (spacemacs-ht-get dependencies pkg-name)))
           (cl-reduce (lambda (x y) (and x y))
                      (mapcar (lambda (p) (configuration-layer//is-package-orphan
                                           p dist-pkgs dependencies))
@@ -2332,15 +2388,22 @@ depends on it."
     (unless (string-empty-p version-string)
       (version-to-list version-string))))
 
+(defun configuration-layer//system-package-p (pkg-desc)
+  "Take `PKG-DESC' and return true if it is a system package."
+  (not (string-prefix-p
+        (file-name-as-directory
+         (expand-file-name package-user-dir))
+        (expand-file-name
+         (package-desc-dir pkg-desc)))))
+
 (defun configuration-layer//package-delete (pkg-name)
   "Delete package with name PKG-NAME."
-  (cond
-   ((version<= "25.0.50" emacs-version)
-    (let ((p (cadr (assq pkg-name package-alist))))
+  (if-let ((pkg (car (alist-get pkg-name package-alist))))
       ;; add force flag to ignore dependency checks in Emacs25
-      (when p (package-delete p t t))))
-   (t (let ((p (cadr (assq pkg-name package-alist))))
-        (when p (package-delete p))))))
+      (if (configuration-layer//system-package-p pkg)
+          (message "Would have removed package %s but this is a system package so it has not been changed." pkg-name)
+        (package-delete pkg t t))
+    (message "Can't remove package %s since it isn't installed." pkg-name)))
 
 (defun configuration-layer/delete-orphan-packages (packages)
   "Delete PACKAGES if they are orphan."
@@ -2389,9 +2452,9 @@ depends on it."
                    (eq auto-mode mode))
           (push (car x) gather-extensions))))
     (when gather-extensions
-        (concat "\\("
-                (string-join gather-extensions "\\|")
-                "\\)"))))
+      (concat "\\("
+              (string-join gather-extensions "\\|")
+              "\\)"))))
 
 (defun configuration-layer//lazy-install-extensions-for-layer (layer-name)
   "Return an alist of owned modes and extensions for the passed layer."
@@ -2421,7 +2484,7 @@ depends on it."
   (let ((layer-name
          (intern (completing-read
                   "Choose a used layer"
-                  (sort (copy-list configuration-layer--used-layers) #'string<)))))
+                  (sort (cl-copy-list configuration-layer--used-layers) #'string<)))))
     (let ((mode-exts (configuration-layer//lazy-install-extensions-for-layer
                       layer-name)))
       (dolist (x mode-exts)
@@ -2451,7 +2514,7 @@ depends on it."
                  (cadr (assq 'built-in stats))))
         (spacemacs-buffer//center-line)
         (spacemacs-buffer/append (format "\n(%.3fs spent in your user-config)"
-                           dotspacemacs--user-config-elapsed-time))
+                                         dotspacemacs--user-config-elapsed-time))
         (spacemacs-buffer//center-line)
         (insert "\n")))))
 
@@ -2459,7 +2522,7 @@ depends on it."
   "Return a list of all ELPA packages in indexed packages and dependencies."
   (let (result)
     (dolist (pkg-sym (configuration-layer//filter-distant-packages
-                      (ht-keys configuration-layer--indexed-packages) nil))
+                      (spacemacs-ht-keys configuration-layer--indexed-packages) nil))
       (when (assq pkg-sym package-archive-contents)
         (let* ((deps (mapcar 'car
                              (configuration-layer//get-package-deps-from-archive
@@ -2482,9 +2545,9 @@ depends on it."
                      ,(package-desc-extras obj)])))
 
 (defun configuration-layer//patch-package-descriptor (desc)
-  "Return a patched DESC.
-The URL of the descriptor is patched to be the passed URL"
-  )
+  "Return a patched DESC.))))))
+The URL of the descriptor is patched to be the passed URL")
+
 
 (defun configuration-layer//download-elpa-file
     (pkg-name filename archive-url output-dir
@@ -2543,7 +2606,8 @@ Original code from dochang at https://github.com/dochang/elpa-clone"
   (let (package-archive-contents
         (package-archives '(("melpa" . "https://melpa.org/packages/")
                             ("org"   . "https://orgmode.org/elpa/")
-                            ("gnu"   . "https://elpa.gnu.org/packages/"))))
+                            ("gnu"   . "https://elpa.gnu.org/packages/")
+                            ("nongnu" . "https://elpa.nongnu.org/nongnu/"))))
     (package-refresh-contents)
     (package-read-all-archive-contents)
     (let* ((packages (configuration-layer//get-indexed-elpa-package-names))
@@ -2563,9 +2627,12 @@ Original code from dochang at https://github.com/dochang/elpa-clone"
 (defun configuration-layer/stable-elpa-version ()
   "Set and return the current version of the ELPA repository.
 Returns nil if the version is unknown."
+  (interactive)
   (when (file-exists-p configuration-layer--stable-elpa-version-file)
     (with-current-buffer (find-file-noselect
                           configuration-layer--stable-elpa-version-file)
+      (when (called-interactively-p 'interactive)
+        (message "Stable ELPA repository version is: %s" (buffer-string)))
       (buffer-string))))
 
 (defun configuration-layer//stable-elpa-tarball-distant-file ()
@@ -2584,8 +2651,7 @@ repository."
 
 (defun configuration-layer//stable-elpa-directory ()
   "Return the local absolute path of the ELPA stable repository."
-  (cdr (assoc configuration-layer-stable-elpa-name
-              configuration-layer-elpa-archives)))
+  configuration-layer-stable-elpa-archive)
 
 (defun configuration-layer//stable-elpa-tarball-local-file ()
   "Return the local absolute path for the file of the downloaded tarball of
@@ -2596,146 +2662,192 @@ ELPA stable repository."
   "Return the absolute path to the signature file."
   (format "%s.sig" (configuration-layer//stable-elpa-directory)))
 
-(defun configuration-layer//stable-elpa-untar-archive ()
-  "Untar the downloaded archive of stable ELPA, returns non-nil if succeeded."
-  (require 'tar-mode)
-  (let ((untar t)
+(defun configuration-layer//executable-not-found-error (exec &optional msg)
+  "Display a generic error message about not found EXECutable file.
+
+MSG is an additional message append to the generic error."
+  (when (null msg) (setq msg ""))
+  (configuration-layer//error
+   (format
+    (concat
+     "Cannot find %s executable in your PATH.\n"
+     "Verify your spacemacs environment variables with [SPC f e e].%s\n"
+     "Spacelpa installation has been skipped!") exec msg)))
+
+(defun configuration-layer//stable-elpa-update-version-file ()
+  "Write a file containing the version number of the stable ELPA repository."
+  (with-current-buffer (find-file-noselect
+                        configuration-layer--stable-elpa-version-file)
+    (erase-buffer)
+    (goto-char (point-min))
+    (insert (format "%s" configuration-layer-stable-elpa-version))
+    (save-buffer)))
+
+(defun configuration-layer//stable-elpa-delete-temporary-files ()
+  "Delete stable ELPA repository temporary files."
+  (let ((tarball (configuration-layer//stable-elpa-tarball-local-file))
+        (tarball-sig (configuration-layer//stable-elpa-tarball-local-sign-file)))
+    (when (file-exists-p tarball)
+      (delete-file tarball))
+    (when (file-exists-p tarball-sig)
+      (delete-file tarball-sig))))
+
+(defun configuration-layer//stable-elpa-ask-to-continue (reason)
+  "Prompt the users to continue when Spacemacs cannot verify the archive."
+  (y-or-n-p
+   (format (concat "Spacemacs cannot verify the authenticity of "
+                   "the stable ELPA archive (%s)!\n"
+                   "The reason is: %s\n"
+                   "\n"
+                   "Do you still want to install the stable ELPA repository ?")
+           configuration-layer-stable-elpa-name
+           reason)))
+
+(defun configuration-layer//stable-elpa-verify-archive ()
+  "Verify the downloaded stable ELPA repository archive.
+
+Returns non nil if the verification succeeded.
+
+If Spacemacs cannot verify the archive a prompt ask the user if they want to
+continue with the stable ELPA repository installation."
+  (let (context
+        good-signatures
+        verification-err
+        fatal-err
         (archive (configuration-layer//stable-elpa-tarball-local-file))
         (sig-file (configuration-layer//stable-elpa-tarball-local-sign-file))
         large-file-warning-threshold)
-    (with-current-buffer (find-file-noselect archive)
-      ;; verify signature
-      (when dotspacemacs-verify-spacelpa-archives
-        (let ((name configuration-layer-stable-elpa-name)
-              (sig-string (with-current-buffer (find-file-noselect sig-file)
-                            (buffer-string)))
-              (context (epg-make-context 'OpenPGP))
-              (homedir (configuration-layer//stable-elpa-directory)))
-          (spacemacs-buffer/set-mode-line
-           (format "Verifying %s archive..." name) t)
-          (condition-case-unless-debug error
+    (when (or (not (file-exists-p archive))
+              (not (file-exists-p sig-file)))
+      (setq fatal-err (concat "Cannot find downloaded stable ELPA repository "
+                              "archive or its signature file.")))
+    (unless fatal-err
+      (with-current-buffer (find-file-noselect archive)
+        (spacemacs-buffer/set-mode-line
+         (format "Verifying %s archive..."
+                 configuration-layer-stable-elpa-name) t)
+        (condition-case error
+            (setq context (epg-make-context 'OpenPGP))
+          (error (setq verification-err
+                       (format "GnuPGP doesn't seem to be available. %s"
+                               (cdr error)))))
+        (when package-gnupghome-dir
+          (with-file-modes 448
+            (make-directory package-gnupghome-dir t))
+          (setf (epg-context-home-directory context) package-gnupghome-dir))
+        (unless verification-err
+          (condition-case error
               (epg-import-keys-from-file
                context configuration-layer--stable-elpa-gpg-keyring)
-            (error
-             (configuration-layer/message
-              "Cannot import keyring: %S" (cdr error))
-             (setq untar nil)))
-          (condition-case error
-              (setf (epg-context-home-directory context) homedir)
-            (epg-verify-string context sig-string (buffer-string))
-            (let (good-signatures)
-              ;; The .sig file may contain multiple signatures.  Success if one
-              ;; of the signatures is good.
-              (dolist (sig (epg-context-result-for context 'verify))
-                (when (eq (epg-signature-status sig) 'good)
-                  (push sig good-signatures)))
-              (when (null good-signatures)
-                (setq untar nil)
-                (configuration-layer//error
-                 (concat "Cannot verify %s archive! \n"
-                         "Installation of ELPA repository aborted.")
-                 archive)
-                (package--display-verify-error context sig-file)
-                (setq untar nil)))
-            (error
-             (configuration-layer//error
-              (concat "An error happened while trying to verify %s archive! "
-                      "(reason: %S)") archive error)
-             (setq untar nil)))))
-      ;; uncompress
-      (when untar
-        (spacemacs-buffer/set-mode-line
-         (format "Extracting %s archive..." name) t)
-        (if (and (spacemacs/system-is-mswindows)
-                 (not (executable-find "tar")))
-            (progn
-              (configuration-layer//error
-                (concat "Error: Cannot find tar executable in you PATH.\n"
-                  "Spacelpa installation has been skipped!")))
-          (call-process "tar" nil nil nil "-xzf" archive))))
-    untar))
+            (error (setq verification-err
+                         (format "Cannot import public key. %s"
+                                 (cdr error)))))
+          (unless verification-err
+            (condition-case error
+                (epg-verify-file context sig-file archive)
+              (error (setq verification-err
+                           (format "Error during verification phase. %s"
+                                   (cdr error)))))
+            ;; The .sig file may contain multiple signatures. Success if one
+            ;; of the signatures is good.
+            (dolist (sig (epg-context-result-for context 'verify))
+              (when (eq (epg-signature-status sig) 'good)
+                (push sig good-signatures)))
+            (when (null good-signatures)
+              (unless verification-err
+                ;; `epg-verify-string' does not signal error when everything
+                ;; went fine but the verification in itself failed.
+                ;; This is a strong indicator that the archive may be
+                ;; compromised.
+                (setq verification-err
+                      (concat "Verification failed! It is strongly advised to "
+                              "NOT install the stable ELPA repository and "
+                              "report it on GitHub.")))
+              (when init-file-debug
+                (package--display-verify-error context sig-file)))))))
+    (cond
+     ((not (null fatal-err))
+      (configuration-layer//error fatal-err)
+      nil)
+     ((not (null verification-err))
+      (configuration-layer//stable-elpa-ask-to-continue verification-err))
+     (t t))))
 
-(defun configuration-layer/stable-elpa-download-tarball ()
-  "Download and extract the tarball of the stable ELPA repository if it used."
-  (when (and (assoc configuration-layer-stable-elpa-name
-                    configuration-layer-elpa-archives)
-             (not (string-equal (configuration-layer/stable-elpa-version)
-                                configuration-layer-stable-elpa-version)))
-    (let ((url (configuration-layer//stable-elpa-tarball-distant-file))
-          (local (configuration-layer//stable-elpa-tarball-local-file))
-          (url-sig (configuration-layer//stable-elpa-tarball-distant-sign-file))
-          (local-sig (configuration-layer//stable-elpa-tarball-local-sign-file))
-          (name configuration-layer-stable-elpa-name))
+(defun configuration-layer//stable-elpa-untar-archive ()
+  "Untar the downloaded archive of stable ELPA, returns non-nil if succeeded."
+  (require 'tar-mode)
+  (let ((archive (configuration-layer//stable-elpa-tarball-local-file))
+        (sig-file (configuration-layer//stable-elpa-tarball-local-sign-file))
+        large-file-warning-threshold)
+    (with-current-buffer (find-file-noselect archive)
       (spacemacs-buffer/set-mode-line
-       (format (concat "Downloading stable ELPA repository: %s... "
-                       "(please wait)") name) t)
-      (if (and (spacemacs/system-is-mswindows)
-               (not (executable-find "gzip")))
-          ;; additional check on Windows platform as tarball are not handled
-          ;; natively and requires the installation of gzip.
-          (progn
-            (configuration-layer//error
-             (format
-              (concat "Error: Cannot find gzip executable in you PATH.\n"
-                      "Download and install gzip here: "
-                      "http://gnuwin32.sourceforge.net/packages/gzip.htm \n"
-                      "%s installation has been skipped!") name)))
+       (format "Extracting %s archive..."
+               configuration-layer-stable-elpa-name) t)
+      (if (not (executable-find "tar"))
+          (configuration-layer//executable-not-found-error "tar")
+        (call-process "tar" nil nil nil "-xzf" archive)))))
+
+(defun configuration-layer//stable-elpa-download-tarball ()
+  "Download the tarball of the stable ELPA repository if it used.
+
+Returns non nil if the tarball has been downloaded.
+
+Returns nil if the tarball does not need to be downloaded or if an error
+happened during the download."
+  (let (result)
+    (when (and (assoc configuration-layer-stable-elpa-name
+                      configuration-layer-elpa-archives)
+               (not (string-equal (configuration-layer/stable-elpa-version)
+                                  configuration-layer-stable-elpa-version)))
+      (let ((url (configuration-layer//stable-elpa-tarball-distant-file))
+            (local (configuration-layer//stable-elpa-tarball-local-file))
+            (url-sig (configuration-layer//stable-elpa-tarball-distant-sign-file))
+            (local-sig (configuration-layer//stable-elpa-tarball-local-sign-file)))
+        (spacemacs-buffer/set-mode-line
+         (format (concat "Downloading stable ELPA repository: %s... "
+                         "(please wait)")
+                 configuration-layer-stable-elpa-name) t)
         ;; download tarball and detached signature
         (make-directory configuration-layer-stable-elpa-directory t)
-        (url-copy-file url local 'ok-if-already-exists)
-        (when dotspacemacs-verify-spacelpa-archives
-          (url-copy-file url-sig local-sig 'ok-if-already-exists))
-        ;; extract
-        (when (configuration-layer//stable-elpa-untar-archive)
-          ;; delete archive
-          (delete-file local)
-          (when dotspacemacs-verify-spacelpa-archives
-            (delete-file local-sig))
-          ;; update version file
-          (with-current-buffer (find-file-noselect
-                                configuration-layer--stable-elpa-version-file)
-            (erase-buffer)
-            (beginning-of-buffer)
-            (insert (format "%s" configuration-layer-stable-elpa-version))
-            (save-buffer)))))))
+        (condition-case-unless-debug err
+            (progn
+              (url-copy-file url local 'ok-if-already-exists)
+              (when dotspacemacs-verify-spacelpa-archives
+                (url-copy-file url-sig local-sig 'ok-if-already-exists))
+              (setq result t))
+          (error nil))))
+    result))
+
+(defun configuration-layer//stable-elpa-disable-repository ()
+  "Remove stable ELPA repostiory from `package.el' archive.."
+  (setq configuration-layer-elpa-archives
+        (cl-delete configuration-layer-stable-elpa-name
+                   configuration-layer-elpa-archives
+                   :test 'equal :key 'car))
+  (setq package-archive-priorities
+        (cl-delete configuration-layer-stable-elpa-name
+                   package-archive-priorities
+                   :test 'equal :key 'car)))
+
+(defun configuration-layer/stable-elpa-init ()
+  "Initialize the stable ELPA repository.
+
+This function downloads the repository tarball. Then it verifies its signature
+if required. The last step is to uncompress the tarball and clean the temporary
+files."
+  (unwind-protect
+      (if (and (configuration-layer//stable-elpa-download-tarball)
+               (or (not dotspacemacs-verify-spacelpa-archives)
+                   (configuration-layer//stable-elpa-verify-archive)))
+          (progn
+            (configuration-layer//stable-elpa-untar-archive)
+            (configuration-layer//stable-elpa-update-version-file))
+        (configuration-layer//stable-elpa-disable-repository))
+    (configuration-layer//stable-elpa-delete-temporary-files)))
 
 ;; (configuration-layer/create-elpa-repository
 ;;  "spacelpa"
 ;;  spacemacs-cache-directory)
-
-(defun configuration-layer//package-install-org (func &rest args)
-  "Advice around `package-install' to patch package name and dependencies at
-install time in order to replace all `org' package installation by
-`org-plus-contrib'. We avoid installing unecessarily both `org' and
-`org-plus-contrib' at the same time (i.e. we always install `org-plus-contrib')"
-  (let* ((pkg (car args))
-         (patched
-          (cond
-           ;; patch symbol name
-           ((and (symbolp pkg) (eq 'org pkg))
-            (setcar args 'org-plus-contrib)
-            t)
-           ;; patch name in package-desc object
-           ((and (package-desc-p pkg)
-                 (eq 'org (package-desc-name pkg)))
-            (setf (package-desc-name pkg) 'org-plus-contrib)
-            t)
-           ;; patch dependencies in package-desc object
-           ((and (package-desc-p pkg)
-                 (assq 'org (package-desc-reqs pkg)))
-            (setf (car (assq 'org (package-desc-reqs pkg))) 'org-plus-contrib)
-            t))))
-    (let ((name (if (package-desc-p pkg)
-                    (package-desc-name pkg)
-                  pkg)))
-      ;; check manually if `org-plus-contrib' is already installed since
-      ;; package.el may install `org-plus-contrib' more than once.
-      ;; Maybe we could hook somewhere else (at transaction computation time?)
-      (if (or patched (eq 'org-plus-contrib name))
-          (unless (package-installed-p name)
-            (apply func args))
-        (apply func args)))))
-(advice-add 'package-install :around #'configuration-layer//package-install-org)
 
 (defun configuration-layer//increment-error-count ()
   "Increment the error counter."

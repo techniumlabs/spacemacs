@@ -1,33 +1,45 @@
 ;;; packages.el --- Notmuch Layer packages File for Spacemacs
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-(setq notmuch-packages
-      '(
-        (counsel-notmuch :requires ivy)
-        (helm-notmuch :requires helm)
-        notmuch
-        org
-        persp-mode
-        window-purpose
-        ))
+
+(defconst notmuch-packages
+  '(
+    (counsel-notmuch :requires ivy)
+    (helm-notmuch :requires helm)
+    notmuch
+    org
+    persp-mode
+    window-purpose))
+
 
 (defun notmuch/init-counsel-notmuch ()
   (use-package counsel-notmuch
     :defer t
-    :init (spacemacs/set-leader-keys "aNn" 'counsel-notmuch)))
+    :init (spacemacs/set-leader-keys "aenn" 'counsel-notmuch)))
 
 (defun notmuch/init-helm-notmuch ()
   (use-package helm-notmuch
     :defer t
-    :init (spacemacs/set-leader-keys "aNn" 'helm-notmuch)))
+    :init (spacemacs/set-leader-keys "aenn" 'helm-notmuch)))
 
 (defun notmuch/init-notmuch ()
   (use-package notmuch
@@ -35,12 +47,12 @@
     :commands notmuch
     :init
     (progn
-      (spacemacs/declare-prefix "aN" "notmuch")
+      (spacemacs/declare-prefix "aen" "notmuch")
       (spacemacs/set-leader-keys
-        "aNN" 'notmuch
-        "aNi" 'spacemacs/notmuch-inbox
-        "aNj" 'notmuch-jump-search
-        "aNs" 'notmuch-search))
+        "aenN" 'notmuch
+        "aeni" 'spacemacs/notmuch-inbox
+        "aenj" 'notmuch-jump-search
+        "aens" 'notmuch-search))
     :config
     (progn
       (dolist (prefix '(("ms" . "stash")
@@ -80,34 +92,53 @@
         "Po" 'spacemacs/notmuch-show-open-github-patch
         "Pa" 'spacemacs/notmuch-git-apply-patch
         "PA" 'spacemacs/notmuch-git-apply-patch-part)
-      ;; evilified maps
-      (evilified-state-evilify-map notmuch-hello-mode-map
-        :mode notmuch-hello-mode)
+      ;; Evilify notmuch modes
+      ;; Use normal mode map to allow proper editing capabilities
+      ;; for the embedded search field in `notmuch-hello-mode`
+      (evil-set-initial-state 'notmuch-hello-mode 'normal)
+      (evil-define-key 'normal notmuch-hello-mode-map
+        "C-tab" #'widget-backward
+        "S-tab" #'widget-backward
+        "=" #'notmuch-refresh-this-buffer
+        "?" #'notmuch-help
+        "G" #'notmuch-poll-and-refresh-this-buffer
+        "g" #'notmuch-refresh-this-buffer
+        "J" #'notmuch-jump-search
+        "m" #'notmuch-mua-new-mail
+        "q" #'notmuch-bury-or-kill-this-buffer
+        "s" #'notmuch-search
+        "v" #'notmuch-hello-versions
+        "z" #'notmuch-tree
+        "M-=" #'notmuch-refresh-all-buffers)
+      ;; Make notmuch message mode closable via q
+      (evil-define-key 'normal notmuch-message-mode-map
+        "q" #'message-kill-buffer)
       (evilified-state-evilify-map notmuch-show-mode-map
         :mode notmuch-show-mode
         :bindings
-        ;; In notmuch-show-mode n would be bound to `notmuch-show-next-message`
-        ;; but the evilified state moves the `n' bound function to C-n while
-        ;; it's counterpart `notmuch-show-previous-message` remains bound to
-        ;; `p'. Adding a binding for the previous function to `C-p' becomes
-        ;; handy while navigation messages back and forth.
-        (kbd "C-p")   'notmuch-show-previous-message
+        (kbd "N")   'notmuch-show-next-message
+        (kbd "P")   'notmuch-show-previous-message
+        (kbd "p")   'notmuch-show-previous-open-message
         (kbd "n")   'notmuch-show-next-open-message
         (kbd "o")   'notmuch-show-open-or-close-all
         (kbd "O")   'spacemacs/notmuch-show-close-all)
       (evilified-state-evilify-map notmuch-tree-mode-map
         :mode notmuch-tree-mode
         :bindings
-        (kbd "d") 'spacemacs/notmuch-message-delete-down
-        (kbd "D") 'spacemacs/notmuch-message-delete-up
+        (kbd "N") 'notmuch-tree-next-message
+        (kbd "P") 'notmuch-tree-prev-message
+        (kbd "d") 'spacemacs/notmuch-tree-message-delete-down
+        (kbd "D") 'spacemacs/notmuch-tree-message-delete-up
+        (kbd "n") 'notmuch-tree-next-matching-message
+        (kbd "p") 'notmuch-tree-prev-matching-message
         (kbd "M") 'compose-mail-other-frame)
       (evilified-state-evilify-map notmuch-search-mode-map
         :mode notmuch-search-mode
         :bindings
         (kbd "a") 'spacemacs/notmuch-search-archive-thread-down
         (kbd "A") 'spacemacs/notmuch-search-archive-thread-up
-        (kbd "d") 'spacemacs/notmuch-message-delete-down
-        (kbd "D") 'spacemacs/notmuch-message-delete-up
+        (kbd "d") 'spacemacs/notmuch-search-message-delete-down
+        (kbd "D") 'spacemacs/notmuch-search-message-delete-up
         (kbd "J") 'notmuch-jump-search
         (kbd "L") 'notmuch-search-filter
         (kbd "gg") 'notmuch-search-first-thread
@@ -118,7 +149,7 @@
 
 (defun notmuch/pre-init-org ()
   (spacemacs|use-package-add-hook org
-    :post-config (require 'org-notmuch)))
+    :post-config (require 'ol-notmuch)))
 
 (defun notmuch/pre-init-persp-mode ()
   (spacemacs|use-package-add-hook persp-mode
@@ -135,8 +166,10 @@
               (add-hook hook #'spacemacs//notmuch-buffer-to-persp)))
           (call-interactively 'notmuch))))))
 
-(defun notmuch/pre-init-window-purpose ()
-  (spacemacs|use-package-add-hook window-purpose
-    :pre-config
+(defun notmuch/post-init-window-purpose ()
+  (let ((modes))
     (dolist (mode notmuch-modes)
-      (add-to-list 'purpose-user-mode-purposes (cons mode 'mail)))))
+      (add-to-list 'modes (cons mode 'mail)))
+    (purpose-set-extension-configuration
+     :notmuch-layer
+     (purpose-conf :mode-purposes modes))))

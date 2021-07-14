@@ -1,6 +1,6 @@
 ;;; packages.el --- docker Layer packages File for Spacemacs
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;; Copyright (c) 2015 Alan Zimmerman & Contributors
 ;;
 ;; Author: Alan Zimmerman <alan.zimm@gmail.com>
@@ -8,43 +8,38 @@
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 (defconst docker-packages
   '(
     docker
     docker-tramp
     dockerfile-mode
-    ))
+    flycheck))
 
 (defun docker/init-docker ()
   (use-package docker
     :defer t
     :init
     (progn
-      (spacemacs/declare-prefix "aD" "Docker")
-      (evil-leader/set-key
-        "aDc" 'docker-containers
-        "aDC" 'docker-compose
-        "aDd" 'docker-rmi
-        "aDe" 'docker-unpause
-        "aDF" 'docker-pull
-        "aDk" 'docker-rm
-        "aDi" 'docker-images
-        "aDm" 'docker-machines
-        "aDn" 'docker-networks
-        "aDo" 'docker-stop
-        "aDP" 'docker-push
-        "aDp" 'docker-pause
-        "aDr" 'docker-restart
-        "aDs" 'docker-start
-        "aDv" 'docker-volumes)))
-  (with-eval-after-load 'docker-containers
-    (evilified-state-evilify-map docker-containers-mode-map
-      :mode docker-containers-mode))
-  (with-eval-after-load 'docker-images
-    (evilified-state-evilify-map docker-images-mode-map
-      :mode docker-images-mode)))
+      (spacemacs/set-leader-keys "atd" #'docker)
+      (evil-define-key 'normal docker-image-mode-map (kbd "q") 'quit-window)
+      (evil-define-key 'normal docker-container-mode-map (kbd "q") 'quit-window)
+      (evil-define-key 'normal docker-volume-mode-map (kbd "q") 'quit-window)
+      (evil-define-key 'normal docker-network-mode-map (kbd "q") 'quit-window)
+      (evil-define-key 'normal docker-machine-mode-map (kbd "q") 'quit-window))))
 
 (defun docker/init-docker-tramp ()
   (use-package docker-tramp
@@ -53,10 +48,12 @@
 (defun docker/init-dockerfile-mode ()
   (use-package dockerfile-mode
     :defer t
+    :init (add-hook 'dockerfile-mode-local-vars-hook #'spacemacs//docker-dockerfile-setup-backend)
     :config
-    (progn
-      (spacemacs/declare-prefix-for-mode 'dockerfile-mode
-        "mc" "compile")
-      (spacemacs/set-leader-keys-for-major-mode 'dockerfile-mode
-        "cb" 'dockerfile-build-buffer
-        "cB" 'dockerfile-build-no-cache-buffer))))
+    (spacemacs/declare-prefix-for-mode 'dockerfile-mode "mc" "compile")
+    (spacemacs/set-leader-keys-for-major-mode 'dockerfile-mode
+      "cb" 'dockerfile-build-buffer
+      "cB" 'dockerfile-build-no-cache-buffer)))
+
+(defun docker/post-init-flycheck ()
+  (spacemacs/enable-flycheck 'dockerfile-mode))

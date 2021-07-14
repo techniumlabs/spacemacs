@@ -1,13 +1,25 @@
 ;;; funcs.el --- Version control functions File
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 (defun spacemacs/diff-mode-revert-hunk ()
   (interactive)
@@ -128,3 +140,30 @@
   :off (spacemacs/vcs-disable-margin-globally)
   :documentation "Enable diff margins globally."
   :evil-leader "T C-d")
+
+(defun spacemacs//smerge-ts-hint ()
+  "Return a hint for the smerge transient state.
+Return a string indicating the index of the current conflict and
+the number of conflicts detected by `smerge-mode'."
+  (concat
+   (cl-loop for ol being the overlays
+            with pos = (point)
+            if (eq (overlay-get ol 'smerge) 'conflict)
+            count ol into total
+            and if (<= (overlay-start ol) pos)
+            count ol into idx
+            finally return (format "conflict [%d/%d]" idx total))
+   (if spacemacs--smerge-ts-full-hint-toggle
+       spacemacs--smerge-ts-full-hint
+     (concat "  (["
+             (propertize "?" 'face 'hydra-face-red)
+             "] help)"))))
+
+(defun spacemacs//smerge-ts-toggle-hint ()
+  "Toggle the full hint docstring for the smerge transient state."
+  (interactive)
+  (setq spacemacs--smerge-ts-full-hint-toggle
+        (not spacemacs--smerge-ts-full-hint-toggle)))
+
+(defun spacemacs//git-gutter+-refresh-in-all-buffers ()
+  (git-gutter+-in-all-buffers (when git-gutter+-mode (git-gutter+-refresh))))

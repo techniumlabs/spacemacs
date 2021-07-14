@@ -1,13 +1,25 @@
-;;; config.el --- OSX Layer keybindings File for Spacemacs
+;;; keybindings.el --- OSX Layer keybindings File for Spacemacs
 ;;
-;; Copyright (c) 2012-2018 Sylvain Benner & Contributors
+;; Copyright (c) 2012-2021 Sylvain Benner & Contributors
 ;;
 ;; Author: Sylvain Benner <sylvain.benner@gmail.com>
 ;; URL: https://github.com/syl20bnr/spacemacs
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
-;;; License: GPLv3
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 (when (spacemacs/system-is-mac)
   (spacemacs/set-leader-keys "bf" 'reveal-in-osx-finder)
@@ -34,7 +46,7 @@
   (setq allowed-values '(super meta hyper control alt none left))
 
   ;; Backwards compatibility
-  (case osx-use-option-as-meta
+  (cl-case osx-use-option-as-meta
     ('nil (setf osx-option-as 'none))
     (deprecated nil)
     (t (setf osx-option-as 'meta)))
@@ -49,14 +61,17 @@
     (cl-rotatef mac-command-modifier mac-option-modifier))
 
   (defun kbd-mac-command (keys)
-    "Wraps `kbd' function with Mac OSX compatible Command-key (⌘).
-KEYS should be a string such as \"f\" which will be turned into values
-such as \"H-f\", \"s-f\", or \"A-f\" depending on the value of
-`mac-commmand-modifier' which could be `hyper', `super', or `alt'.
-KEYS with a string of \"C-f\" are also valid and will be turned into
-values such as \"H-C-f\".
-if `mac-command-modifier' is set to `none' or something other than
-the three sane values listed above, bind to `H-' by default"
+    "Call `kbd' with a macOS-compatible Command-key (⌘) prefixed.
+KEYS should be a string suitable as input to `kbd'.
+`mac-commmand-modifier' determines which prefix will be added; it
+should be set to one of `hyper', `super', or `alt'.  For example,
+if KEYS is the string `f', it will be prefixed as `H-f', `s-f',
+or `A-f' accordingly.  If KEYS is of the form `C-f', it likewise
+will be prefixed as `H-C-f', `s-C-f', or `A-C-f'.
+
+If `mac-command-modifier' is set to `none' or something other
+than the three values listed above, `H-' will be used as the
+default."
     (let ((found (assoc mac-command-modifier
                         '((hyper . "H-")
                           (super . "s-")
@@ -85,15 +100,15 @@ the three sane values listed above, bind to `H-' by default"
                     (call-interactively (key-binding "\C-x\C-s"))))
 
   ;; window manipulation with command key
-  (global-set-key (kbd-mac-command "1") 'winum-select-window-1)
-  (global-set-key (kbd-mac-command "2") 'winum-select-window-2)
-  (global-set-key (kbd-mac-command "3") 'winum-select-window-3)
-  (global-set-key (kbd-mac-command "4") 'winum-select-window-4)
-  (global-set-key (kbd-mac-command "5") 'winum-select-window-5)
-  (global-set-key (kbd-mac-command "6") 'winum-select-window-6)
-  (global-set-key (kbd-mac-command "7") 'winum-select-window-7)
-  (global-set-key (kbd-mac-command "8") 'winum-select-window-8)
-  (global-set-key (kbd-mac-command "9") 'winum-select-window-9)
+  (global-set-key (kbd-mac-command "1") 'spacemacs/winum-select-window-1)
+  (global-set-key (kbd-mac-command "2") 'spacemacs/winum-select-window-2)
+  (global-set-key (kbd-mac-command "3") 'spacemacs/winum-select-window-3)
+  (global-set-key (kbd-mac-command "4") 'spacemacs/winum-select-window-4)
+  (global-set-key (kbd-mac-command "5") 'spacemacs/winum-select-window-5)
+  (global-set-key (kbd-mac-command "6") 'spacemacs/winum-select-window-6)
+  (global-set-key (kbd-mac-command "7") 'spacemacs/winum-select-window-7)
+  (global-set-key (kbd-mac-command "8") 'spacemacs/winum-select-window-8)
+  (global-set-key (kbd-mac-command "9") 'spacemacs/winum-select-window-9)
 
   (global-set-key (kbd-mac-command "Z") 'undo-tree-redo)
   (global-set-key (kbd-mac-command "C-f") 'spacemacs/toggle-frame-fullscreen)
